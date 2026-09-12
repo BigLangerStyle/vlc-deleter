@@ -1,27 +1,33 @@
-# Verification
+# Testing VLC Deleter
 
-From a PowerShell prompt in the repository:
+Open PowerShell in the project folder and run:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/Test-Helper.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/Test-Extension.ps1
 ```
 
-The helper test creates a uniquely named disposable file, verifies that validation preserves it, checks locked-file rejection, and permanently deletes it. To test a removable drive, pass `-FixtureParent S:\` (or the appropriate drive) to `Test-Helper.ps1`.
+The helper test creates a disposable file, checks that validation leaves it alone, tries deleting it while it's locked, and finally deletes it after the lock is released. The filename includes spaces, an emoji, and characters that can trip up shell commands.
 
-The extension test loads VLC's installed Lua runtime DLL into the test PowerShell process. PowerShell and VLC must have matching bitness (normally both 64-bit). It tests single-item, ordered-playlist, last-item, duplicate, failure, stream, missing-helper, and manually-changed playback scenarios with mocked playback APIs, without starting VLC or changing its configuration.
+To check another drive, add `-FixtureParent S:\` to the helper command, replacing `S:` with your drive letter. It will create and delete its own test file there.
 
-It also installs into a temporary directory and exercises actual Lua-to-PowerShell validation and deletion on a disposable Unicode-named file. This checks the installer layout, command encoding, helper invocation, and successful playlist updates together. Regression scenarios verify that failed validation and a changed playing item do not stop playback or delete files.
+The extension test uses the Lua runtime that comes with VLC. PowerShell and VLC need to both be 64-bit or both be 32-bit. It simulates playback to check single videos, playlists, duplicate entries, and errors without opening VLC or changing its settings.
 
-For end-to-end manual testing, install the extension and use copies of short videos:
+It also installs a temporary copy of the extension and runs the real PowerShell helper on a disposable file. That checks that the pieces work together. Other checks make sure a failed validation or a switch to another video won't stop playback or delete the wrong file.
 
-1. Play one copy, invoke View > Delete current video, and check that playback stops and the copy is deleted without a confirmation.
-2. Play the first of three copies and verify the next starts after deletion.
-3. Repeat on the final entry; playback should stop.
-4. Try a filename containing spaces, non-ASCII characters, and an emoji.
-5. Lock a copy in another program; check that failure retains its playlist entry.
-6. Enable repeat and shuffle; the deletion action should still advance in displayed playlist order.
+## Try it in VLC
 
-Automated playback mocks do not establish native View-menu behavior or real playback transitions. Record those separately when tested.
+The automated tests can't tell us everything about the player itself. Install the extension and use disposable copies of short videos for these checks:
 
-Verified on Windows with VLC 3.0.23: all 12 extension scenarios pass. Helper validation, locked-file rejection, and actual permanent deletion pass on both C: and the user's removable exFAT S: drive. Native playback-transition checks for this version remain manual.
+1. Play a single video and choose **View > Delete current video**. The file should disappear and playback should stop, with no confirmation.
+2. Play the first of three videos in a playlist and delete it. The next one should start.
+3. Delete the last video in the playlist. Playback should stop.
+4. Try a filename with spaces, accented letters, and an emoji.
+5. Hold a file open in another program so Windows can't delete it. The extension should show an error and keep the playlist entry.
+6. Turn on shuffle and repeat. Deleting a video should still move to the next one in playlist order.
+
+Record these results separately from the automated tests.
+
+## Results so far
+
+All 12 automated extension scenarios passed using VLC 3.0.23's Lua runtime. The helper tests also passed on an internal drive and a removable exFAT drive. The playback checks above still need to be completed for this version.

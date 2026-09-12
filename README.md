@@ -1,51 +1,58 @@
 # VLC Deleter
 
-Permanently delete the currently playing file from **View > Delete current video** in VLC, then play the next playlist entry.
+Watching a folder full of videos and want to get rid of one? Choose **View > Delete current video**. VLC Deleter deletes the file you're watching and moves on to the next video in your playlist.
 
-**The action deletes immediately, without confirmation or the Recycle Bin.**
+**Deletion is permanent. There's no confirmation, and the file won't go to the Recycle Bin.**
 
-## Requirements
+## What you'll need
 
-- Windows 10 or 11 with Windows PowerShell 5.1 (included with Windows).
-- VLC 3.0.x desktop. VLC 4 is not supported yet.
-- Files on fixed, removable (including USB and SD), or mapped network drives. Direct UNC paths, folders, and reparse points are rejected.
+- Windows 10 or 11. The extension uses Windows PowerShell, which comes with Windows.
+- The desktop version of VLC 3.0.x. VLC 4 isn't supported yet.
+
+You can delete files on internal drives, USB drives, SD cards, and network drives with an assigned drive letter. The extension doesn't handle streams, folders, direct network paths such as `\\server\share`, or paths through symbolic links or junctions.
 
 ## Install
 
-Download this repository using **Code > Download ZIP**, extract it, and open PowerShell in the extracted folder. Run:
+Download the project using **Code > Download ZIP** on GitHub. Extract the ZIP, open PowerShell in that folder, and run:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1
 ```
 
-Restart VLC completely. Open a video and choose **View > Delete current video**. Installation is per user and does not require administrator rights. The execution-policy option applies only to that PowerShell process; it does not change your saved policy. Managed computers may block PowerShell scripts. Re-running the installer upgrades the extension and removes the obsolete recycling helpers.
+Close VLC completely, then open it again. You'll find **Delete current video** in the **View** menu.
 
-## Behavior
+You don't need administrator rights. To update, download the latest version and run the installer again.
 
-- A single file: stop playback and permanently delete the file.
-- A playlist: delete the file, remove its entries, then play the next distinct file in playlist order.
-- The last item: stop, without wrapping to the beginning.
-- Duplicate entries with the exact same URI are removed together.
-- Shuffle and repeat do not change this action's next-item selection.
-- Validate the target before stopping playback. If validation fails, playback stays unchanged.
-- If deletion fails after stopping, keep the playlist entries and show an error. Playback may remain stopped.
-- The action runs immediately, without a confirmation. Files do not go to the Recycle Bin.
+The command allows the installer to run without changing your saved PowerShell policy. If you're on a work or school computer, your organization's settings may still block it.
 
-The in-memory playlist is updated; saved playlist files are not rewritten. This first version uses a menu action and has no global keyboard shortcut. The operation can take a few seconds while Windows starts the helper and VLC releases the file.
+## Using it
+
+Play a video and choose **View > Delete current video**. Give it a moment to finish; VLC needs to release the file before Windows can delete it.
+
+If you're watching a single file, playback stops. In a playlist, the deleted video is removed and the next one starts. Deleting the last video stops playback instead of jumping back to the beginning.
+
+A few details to know:
+
+- The next video is chosen in playlist order, even with shuffle or repeat turned on.
+- Duplicate entries that point to the exact same file address are removed together.
+- Only the playlist open in VLC changes. Saved playlist files aren't updated.
+- There's no keyboard shortcut or button on the playback toolbar yet.
+
+If the extension can't use the file, it shows an error and leaves playback alone. If Windows refuses to delete it after playback has stopped, the video stays in your playlist so you can play it again or try later.
 
 ## How it works
 
-The Lua extension captures the current URI and playlist entry, validates the target using a PowerShell helper, and checks that the playing item has not changed. It then stops playback and invokes the helper's deletion mode. Filenames are passed as encoded data, never interpolated into executable commands. The helper uses .NET's exact-path file deletion after briefly waiting for VLC to release its handle.
+The extension is a Lua script with a small PowerShell helper. Lua keeps track of the playing video and playlist; PowerShell handles deleting the file.
 
-The extension changes the playlist only after the helper reports success. Each helper process handles one captured file and then exits; there is no background service or network listener.
+Before stopping playback, it checks the file and makes sure VLC hasn't moved on to another video. It removes the playlist entry only after deletion succeeds. Filenames are passed as encoded data, so spaces and special characters aren't treated as commands.
 
 ## Uninstall
 
-Close VLC. In `%APPDATA%\vlc\lua\extensions`, delete `vlc-deleter.lua` and the `vlc-deleter` helper folder. Restart VLC.
+Close VLC and open `%APPDATA%\vlc\lua\extensions` in File Explorer. Delete `vlc-deleter.lua` and the `vlc-deleter` folder. That's it.
 
-## Development
+## Working on the code
 
-Source is in `src/`. Run `tests/Test-Helper.ps1` for helper validation and disposable-file deletion checks. Tests create their own fixtures under `tests/tmp` by default; they never use your videos. See `tests/README.md` for playback checks and testing another drive.
+The code lives in `src/`. See the [testing guide](tests/README.md) for automated checks and things to try in VLC. The tests create their own disposable files; they don't use your videos.
 
 API reference: [VLC Lua API](https://github.com/videolan/vlc/blob/3.0.x/share/lua/README.txt).
 

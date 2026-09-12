@@ -3,7 +3,7 @@ function descriptor()
     return {
         title = "Delete current video", version = "0.2.0", author = "Stephen Langer",
         shortdesc = "Delete current video",
-        description = "Permanently delete the current file immediately, then play the next playlist entry.",
+        description = "Delete the video you're watching and play the next one. Deletion is permanent, with no confirmation.",
         capabilities = {}
     }
 end
@@ -57,10 +57,10 @@ end
 
 local function delete_current()
     local item = vlc.input.item()
-    if not item then return report("No file is currently playing.") end
+    if not item then return report("Open a video first, then try again.") end
     local uri, current = item:uri(), vlc.playlist.current()
     if not uri or not uri:match("^file:///[A-Za-z]:/") then
-        return report("Only Windows drive-letter file paths are supported.")
+        return report("This isn't a file on a drive with a letter, such as C: or S:. Open a file from a drive and try again.")
     end
     local entries = {}
     leaves(vlc.playlist.get("playlist", true) or {}, entries)
@@ -70,25 +70,25 @@ local function delete_current()
         elseif found and not next_id and entry.path ~= uri then next_id = entry.id end
         if entry.path == uri then remove_ids[#remove_ids + 1] = entry.id end
     end
-    if not found then return report("The playing item is not in the editable playlist.") end
+    if not found then return report("Couldn't find this video in the playlist. Open it from the playlist and try again.") end
     local helper = vlc.config.userdatadir() .. "/lua/extensions/vlc-deleter/Delete-File.ps1"
     local file = vlc.io.open(helper, "rb")
-    if not file then return report("Helper is missing. Run Install.ps1 and restart VLC.") end
+    if not file then return report("Part of VLC Deleter is missing. Run Install.ps1 again, then restart VLC.") end
     file:close()
 
     -- Validate while VLC is still playing. An unsupported drive must not stop it.
     local validation = run_helper(helper, uri, true)
     if not validation:match("^VALID%s*$") then
-        return report("Cannot delete this file; playback was left unchanged. " .. validation:sub(1, 600))
+        return report("Couldn't delete this file. Playback hasn't been interrupted. " .. validation:sub(1, 600))
     end
     local latest = vlc.input.item()
     if vlc.playlist.current() ~= current or not latest or latest:uri() ~= uri then
-        return report("Playback changed. Try again.")
+        return report("VLC has moved to another video. Nothing was deleted. Try again on the video you want to delete.")
     end
     vlc.playlist.stop()
     local result = run_helper(helper, uri, false)
     if not result:match("^DELETED%s*$") then
-        return report("Deletion failed; the playlist entry was kept. " .. result:sub(1, 600))
+        return report("Couldn't delete this file. It's still in your playlist. " .. result:sub(1, 600))
     end
     for _, id in ipairs(remove_ids) do vlc.playlist.delete(id) end
     -- Do not replace playback started manually while the helper was running.
@@ -98,7 +98,7 @@ end
 
 function activate()
     local ok, err = pcall(delete_current)
-    if not ok then report("Could not prepare deletion: " .. tostring(err)) end
+    if not ok then report("Something went wrong while deleting the video: " .. tostring(err)) end
 end
 function deactivate()
     if dialog then dialog:delete(); dialog = nil end

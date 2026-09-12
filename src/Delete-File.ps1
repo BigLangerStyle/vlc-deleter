@@ -5,16 +5,16 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 try {
     $value = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($UriBase64))
-    if ($value -cnotmatch '^file:///[A-Za-z]:/') { throw 'Only local drive file URIs are supported.' }
+    if ($value -cnotmatch '^file:///[A-Za-z]:/') { throw 'The file needs to be on a drive with a letter, such as C: or S:.' }
     $uri = [Uri]$value
-    if (-not $uri.IsFile -or $uri.IsUnc -or $uri.Query -or $uri.Fragment) { throw 'Unsupported file URI.' }
+    if (-not $uri.IsFile -or $uri.IsUnc -or $uri.Query -or $uri.Fragment) { throw 'VLC Deleter cannot use this file address.' }
     $path = $uri.LocalPath
     $item = Get-Item -LiteralPath $path -Force
-    if ($item.PSIsContainer) { throw 'Folders cannot be deleted by this extension.' }
+    if ($item.PSIsContainer) { throw 'This is a folder. VLC Deleter only deletes files.' }
     # Reject redirected paths, including junctions in ancestor directories.
     $cursor = $item
     while ($null -ne $cursor) {
-        if ($cursor.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Reparse points are not supported.' }
+        if ($cursor.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'This path goes through a symbolic link or another redirected location. Open the file from its original location.' }
         if ($cursor -is [IO.FileInfo]) { $cursor = $cursor.Directory } else { $cursor = $cursor.Parent }
     }
     $drive = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($path))

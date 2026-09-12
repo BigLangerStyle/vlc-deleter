@@ -12,4 +12,5 @@ foreach ($obsolete in @('Recycle-File.ps1', 'RecycleBin.cs')) {
     $obsoletePath = Join-Path $helper $obsolete
     if (Test-Path -LiteralPath $obsoletePath) { Remove-Item -LiteralPath $obsoletePath -Force }
 }
-Write-Output "Installed to $extensions. Restart VLC, then choose View > Delete current video."
+Write-Output "VLC Deleter is installed. Close VLC completely, then reopen it and choose View > Delete current video."
+Write-Output "Installed files: $extensions"
