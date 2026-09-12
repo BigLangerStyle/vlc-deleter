@@ -1,11 +1,12 @@
+param([string]$FixtureParent = (Join-Path $PSScriptRoot 'tmp'))
 $ErrorActionPreference = 'Stop'
-$testRoot = Join-Path $PSScriptRoot ('tmp/helper-' + [Guid]::NewGuid().ToString('N'))
+$testRoot = Join-Path $FixtureParent ('helper-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
-$helper = Join-Path $PSScriptRoot '../src/Recycle-File.ps1'
+$helper = Join-Path $PSScriptRoot '../src/Delete-File.ps1'
 function Invoke-Helper([string]$Uri, [bool]$Validate = $false) {
     $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Uri))
     $arguments = @('-NoProfile', '-NonInteractive', '-STA', '-ExecutionPolicy', 'Bypass', '-File', $helper, '-UriBase64', $encoded)
-    if ($Validate) { $arguments += '-ValidateOnly' }
+    if ($Validate) { $arguments += '-ValidateOnly' } else { $arguments += '-Delete' }
     $output = & powershell.exe @arguments
     return @{ Code = $LASTEXITCODE; Output = ($output -join "`n") }
 }
@@ -25,19 +26,14 @@ foreach ($invalid in @('https://example.com/movie.mp4', 'file://server/share/mov
 }
 $handle = [IO.File]::Open($file, 'Open', 'Read', 'None')
 try {
+    $validation = Invoke-Helper $uri $true
+    Assert ($validation.Code -eq 0) ('Read-only validation rejected a locked file: ' + $validation.Output)
+    Assert (Test-Path -LiteralPath $file) 'Validation removed the locked file.'
     $result = Invoke-Helper $uri
-    Assert ($result.Code -ne 0) 'Recycled a locked file.'
+    Assert ($result.Code -ne 0) 'Deleted a locked file.'
     Assert (Test-Path -LiteralPath $file) 'Locked file disappeared.'
 } finally { $handle.Dispose() }
 $result = Invoke-Helper $uri
-Assert ($result.Code -eq 0 -and $result.Output -eq 'RECYCLED') ('Recycling failed: ' + $result.Output)
-Assert (-not (Test-Path -LiteralPath $file)) 'Recycled file still exists at source.'
-$shell = New-Object -ComObject Shell.Application
-$bin = $shell.Namespace(10)
-$found = $false
-foreach ($entry in $bin.Items()) {
-    if ($entry.ExtendedProperty('System.Recycle.DeletedFrom') -eq $testRoot -and
-        $entry.ExtendedProperty('System.FileName') -eq $specialName) { $found = $true; break }
-}
-Assert $found 'Could not verify the disposable file in the Recycle Bin.'
-Write-Output 'PASS: Unicode and shell characters, invalid targets, locked file, actual Recycle Bin presence.'
+Assert ($result.Code -eq 0 -and $result.Output -eq 'DELETED') ('Deletion failed: ' + $result.Output)
+Assert (-not (Test-Path -LiteralPath $file)) 'Deleted file still exists at source.'
+Write-Output 'PASS: Unicode and shell characters, invalid targets, validation preserves playback file, locked file, permanent deletion.'

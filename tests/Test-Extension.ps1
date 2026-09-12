@@ -52,4 +52,4 @@ $file = Join-Path $testRoot $name
 $uri = ([Uri]$file).AbsoluteUri
 $dataPath = $testRoot.Replace('\','/')
 Write-Output ([VlcLuaTest]::Run($VlcDirectory, "vlc={}; test_source=[[$source]]; test_data=[[$dataPath]]; test_file_uri=[[$uri]]; return dofile([[$test]])"))
-if (Test-Path -LiteralPath $file) { throw 'Integration fixture was not recycled.' }
+if (Test-Path -LiteralPath $file) { throw 'Integration fixture was not deleted.' }

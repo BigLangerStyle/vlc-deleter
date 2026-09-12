@@ -1,6 +1,6 @@
 # Copyright (c) 2026 Stephen Langer. MIT license.
 [CmdletBinding()]
-param([Parameter(Mandatory = $true)][string]$UriBase64, [switch]$ValidateOnly)
+param([Parameter(Mandatory = $true)][string]$UriBase64, [switch]$ValidateOnly, [switch]$Delete)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 try {
@@ -10,7 +10,7 @@ try {
     if (-not $uri.IsFile -or $uri.IsUnc -or $uri.Query -or $uri.Fragment) { throw 'Unsupported file URI.' }
     $path = $uri.LocalPath
     $item = Get-Item -LiteralPath $path -Force
-    if ($item.PSIsContainer) { throw 'Folders cannot be recycled by this extension.' }
+    if ($item.PSIsContainer) { throw 'Folders cannot be deleted by this extension.' }
     # Reject redirected paths, including junctions in ancestor directories.
     $cursor = $item
     while ($null -ne $cursor) {
@@ -18,10 +18,15 @@ try {
         if ($cursor -is [IO.FileInfo]) { $cursor = $cursor.Directory } else { $cursor = $cursor.Parent }
     }
     $drive = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($path))
-    if ($drive.DriveType -ne [IO.DriveType]::Fixed) { throw 'Only fixed local drives are supported.' }
+    if ($drive.DriveType -notin @([IO.DriveType]::Fixed, [IO.DriveType]::Removable, [IO.DriveType]::Network)) {
+        throw ($drive.Name + ' is an unsupported ' + $drive.DriveType + ' drive.')
+    }
     if ($path.Substring(2).Contains(':')) { throw 'Alternate data streams are not supported.' }
-    if ($ValidateOnly) { Write-Output 'VALID'; exit 0 }
-    Add-Type -Path (Join-Path $PSScriptRoot 'RecycleBin.cs')
+    if ($ValidateOnly) {
+        Write-Output 'VALID'
+        exit 0
+    }
+    if (-not $Delete) { throw 'Specify -ValidateOnly or -Delete.' }
     # VLC stop is asynchronous. Wait briefly for its handle to be released.
     for ($attempt = 0; $attempt -lt 12; $attempt++) {
         try {
@@ -33,9 +38,9 @@ try {
             Start-Sleep -Milliseconds 100
         }
     }
-    [VlcDeleter.RecycleBin]::Recycle($path)
-    if (Test-Path -LiteralPath $path) { throw 'Windows did not recycle the file.' }
-    Write-Output 'RECYCLED'
+    [IO.File]::Delete($path)
+    if (Test-Path -LiteralPath $path) { throw 'Windows did not delete the file.' }
+    Write-Output 'DELETED'
     exit 0
 } catch {
     Write-Output ('ERROR: ' + $_.Exception.Message)

@@ -1,9 +1,9 @@
 -- Copyright (c) 2026 Stephen Langer. MIT license.
 function descriptor()
     return {
-        title = "Recycle current video", version = "0.1.0", author = "Stephen Langer",
-        shortdesc = "Recycle current video",
-        description = "Send the current local file to the Windows Recycle Bin and play the next playlist entry.",
+        title = "Delete current video", version = "0.2.0", author = "Stephen Langer",
+        shortdesc = "Delete current video",
+        description = "Permanently delete the current file immediately, then play the next playlist entry.",
         capabilities = {}
     }
 end
@@ -27,7 +27,8 @@ end
 
 local function report(message)
     vlc.msg.err("[vlc-deleter] " .. message)
-    dialog = vlc.dialog("Recycle current video")
+    if dialog then dialog:delete() end
+    dialog = vlc.dialog("Delete current video")
     dialog:add_label(vlc.strings.convert_xml_special_chars(message), 1, 1)
     dialog:add_button("Close", close, 1, 2)
 end
@@ -40,12 +41,26 @@ local function leaves(node, out)
     end
 end
 
-local function recycle()
+local function run_helper(helper, uri, validate_only)
+    -- Paths travel as UTF-8 base64 data, never executable command text.
+    local script = "$p=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('"
+        .. base64(helper) .. "')); & $p -UriBase64 '" .. base64(uri) .. "'"
+        .. (validate_only and " -ValidateOnly" or "")
+        .. (not validate_only and " -Delete" or "")
+    local encoded = base64((script:gsub(".", function(c) return c .. "\0" end)))
+    local pipe = io.popen("powershell.exe -NoLogo -NoProfile -NonInteractive -STA -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand " .. encoded, "r")
+    if not pipe then return "ERROR: Could not start Windows PowerShell." end
+    local result = pipe:read("*a") or ""
+    pipe:close()
+    return result
+end
+
+local function delete_current()
     local item = vlc.input.item()
     if not item then return report("No file is currently playing.") end
     local uri, current = item:uri(), vlc.playlist.current()
     if not uri or not uri:match("^file:///[A-Za-z]:/") then
-        return report("Only files on local Windows drives can be recycled.")
+        return report("Only Windows drive-letter file paths are supported.")
     end
     local entries = {}
     leaves(vlc.playlist.get("playlist", true) or {}, entries)
@@ -56,24 +71,24 @@ local function recycle()
         if entry.path == uri then remove_ids[#remove_ids + 1] = entry.id end
     end
     if not found then return report("The playing item is not in the editable playlist.") end
-    local helper = vlc.config.userdatadir() .. "/lua/extensions/vlc-deleter/Recycle-File.ps1"
+    local helper = vlc.config.userdatadir() .. "/lua/extensions/vlc-deleter/Delete-File.ps1"
     local file = vlc.io.open(helper, "rb")
     if not file then return report("Helper is missing. Run Install.ps1 and restart VLC.") end
     file:close()
 
-    -- Both variable strings travel as UTF-8 base64 data. The command itself is
-    -- ASCII encoded as UTF-16LE for PowerShell: filenames never become code.
-    local script = "$p=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('"
-        .. base64(helper) .. "')); & $p -UriBase64 '" .. base64(uri) .. "'"
-    local encoded = base64((script:gsub(".", function(c) return c .. "\0" end)))
-    if vlc.playlist.current() ~= current then return report("Playback changed. Try again.") end
+    -- Validate while VLC is still playing. An unsupported drive must not stop it.
+    local validation = run_helper(helper, uri, true)
+    if not validation:match("^VALID%s*$") then
+        return report("Cannot delete this file; playback was left unchanged. " .. validation:sub(1, 600))
+    end
+    local latest = vlc.input.item()
+    if vlc.playlist.current() ~= current or not latest or latest:uri() ~= uri then
+        return report("Playback changed. Try again.")
+    end
     vlc.playlist.stop()
-    local pipe = io.popen("powershell.exe -NoLogo -NoProfile -NonInteractive -STA -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand " .. encoded, "r")
-    if not pipe then return report("Could not start Windows PowerShell. The playlist entry was kept.") end
-    local result = pipe:read("*a") or ""
-    pipe:close()
-    if not result:match("^RECYCLED%s*$") then
-        return report("Recycling failed; the playlist entry was kept. " .. result:sub(1, 600))
+    local result = run_helper(helper, uri, false)
+    if not result:match("^DELETED%s*$") then
+        return report("Deletion failed; the playlist entry was kept. " .. result:sub(1, 600))
     end
     for _, id in ipairs(remove_ids) do vlc.playlist.delete(id) end
     -- Do not replace playback started manually while the helper was running.
@@ -82,8 +97,8 @@ local function recycle()
 end
 
 function activate()
-    local ok, err = pcall(recycle)
-    if not ok then report("Could not finish recycling: " .. tostring(err)) end
+    local ok, err = pcall(delete_current)
+    if not ok then report("Could not prepare deletion: " .. tostring(err)) end
 end
 function deactivate()
     if dialog then dialog:delete(); dialog = nil end
