@@ -1,6 +1,6 @@
 # VLC Deleter
 
-Permanently delete the currently playing file from **View > Delete current video** in VLC, then play the next playlist entry. No AutoHotkey or additional runtime installation is required.
+Permanently delete the currently playing file from **View > Delete current video** in VLC, then play the next playlist entry.
 
 **The action deletes immediately, without confirmation or the Recycle Bin.**
 
