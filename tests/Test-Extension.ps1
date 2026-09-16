@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$VlcDirectory = 'C:\Program Files\VideoLAN\VLC')
+param([string]$VlcDirectory = 'C:\Program Files\VideoLAN\VLC', [switch]$Favorite)
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @'
 using System;
@@ -44,6 +44,10 @@ public static class VlcLuaTest {
 '@
 $source = (Resolve-Path (Join-Path $PSScriptRoot '../src/vlc-deleter.lua')).Path.Replace('\','/')
 $test = (Join-Path $PSScriptRoot 'test-extension.lua').Replace('\','/')
+if ($Favorite) {
+    $source = (Resolve-Path (Join-Path $PSScriptRoot '../src/vlc-favorite.lua')).Path.Replace('\','/')
+    $test = (Join-Path $PSScriptRoot 'test-favorite.lua').Replace('\','/')
+}
 $testRoot = Join-Path $PSScriptRoot ('tmp/integration-' + [Guid]::NewGuid().ToString('N'))
 & (Join-Path $PSScriptRoot '../Install.ps1') -VlcDataDirectory $testRoot | Out-Null
 $name = 'video & %PATH% [1] ' + [char]::ConvertFromUtf32(0x1f3ac) + '.avi'
@@ -52,4 +56,9 @@ $file = Join-Path $testRoot $name
 $uri = ([Uri]$file).AbsoluteUri
 $dataPath = $testRoot.Replace('\','/')
 Write-Output ([VlcLuaTest]::Run($VlcDirectory, "vlc={}; test_source=[[$source]]; test_data=[[$dataPath]]; test_file_uri=[[$uri]]; return dofile([[$test]])"))
-if (Test-Path -LiteralPath $file) { throw 'Integration fixture was not deleted.' }
+if (Test-Path -LiteralPath $file) { throw 'Integration fixture still exists under its original name.' }
+if ($Favorite) {
+    $renamed = Join-Path $testRoot ('.' + $name)
+    if (-not (Test-Path -LiteralPath $renamed)) { throw 'Integration fixture was not renamed.' }
+    if ([IO.File]::ReadAllText($renamed) -ne 'Disposable extension-to-helper integration fixture') { throw 'Renaming changed the contents.' }
+}

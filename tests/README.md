@@ -5,6 +5,8 @@ Open PowerShell in the project folder and run:
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/Test-Helper.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/Test-Extension.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/Test-Favorite.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/Test-Extension.ps1 -Favorite
 ```
 
 The helper test creates a disposable file, checks that validation leaves it alone, tries deleting it while it's locked, and finally deletes it after the lock is released. The filename includes spaces, an emoji, and characters that can trip up shell commands.
@@ -14,6 +16,8 @@ To check another drive, add `-FixtureParent S:\` to the helper command, replacin
 The extension test uses the Lua runtime that comes with VLC. PowerShell and VLC need to both be 64-bit or both be 32-bit. It simulates playback to check single videos, playlists, duplicate entries, and errors without opening VLC or changing its settings.
 
 It also installs a temporary copy of the extension and runs the real PowerShell helper on a disposable file. That checks that the pieces work together. Other checks make sure a failed validation or a switch to another video won't stop playback or delete the wrong file.
+
+The favorite tests check renaming, existing destination files, locked files, repeated favorites, and filenames with emoji and shell characters. They compare the file contents before and after renaming. `Test-Favorite.ps1` also accepts `-FixtureParent` to test another drive. Favorite fixtures are left in the test folder so you can inspect them.
 
 ## Try it in VLC
 
@@ -25,9 +29,14 @@ The automated tests can't tell us everything about the player itself. Install th
 4. Try a filename with spaces, accented letters, and an emoji.
 5. Hold a file open in another program so Windows can't delete it. The extension should show an error and keep the playlist entry.
 6. Turn on shuffle and repeat. Deleting a video should still move to the next one in playlist order.
+7. Choose **View > Favorite current video**. The filename should gain one leading period, appear at the top of the open playlist, and reopen from the beginning.
+8. Favorite that video again. Nothing should change or interrupt playback.
+9. Create a disposable pair named `clip.mp4` and `.clip.mp4`. Favoriting `clip.mp4` should show an error and leave both files alone.
 
 Record these results separately from the automated tests.
 
 ## Results so far
 
 All 12 automated extension scenarios passed using VLC 3.0.23's Lua runtime. The helper tests also passed on an internal drive and a removable exFAT drive. The playback checks above still need to be completed for this version.
+
+The favorite action also passes 14 automated Lua scenarios, including the actual PowerShell rename. Native playback and menu checks remain manual.

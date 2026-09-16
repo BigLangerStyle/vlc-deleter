@@ -4,6 +4,8 @@ Watching a folder full of videos and want to get rid of one? Choose **View > Del
 
 **Deletion is permanent. There's no confirmation, and the file won't go to the Recycle Bin.**
 
+Want to keep a video instead? **View > Favorite current video** adds a period to the start of its filename: `filename.mp4` becomes `.filename.mp4`.
+
 ## What you'll need
 
 - Windows 10 or 11. The extension uses Windows PowerShell, which comes with Windows.
@@ -19,7 +21,7 @@ Download the project using **Code > Download ZIP** on GitHub. Extract the ZIP, o
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1
 ```
 
-Close VLC completely, then open it again. You'll find **Delete current video** in the **View** menu.
+Close VLC completely, then open it again. You'll find **Delete current video** and **Favorite current video** in the **View** menu.
 
 You don't need administrator rights. To update, download the latest version and run the installer again.
 
@@ -40,15 +42,23 @@ A few details to know:
 
 If the extension can't use the file, it shows an error and leaves playback alone. If Windows refuses to delete it after playback has stopped, the video stays in your playlist so you can play it again or try later.
 
+### Keeping a favorite
+
+Choose **View > Favorite current video** while watching a file. It adds one period to the filename, keeps it in the same folder, and puts the renamed video at the top of your open playlist. The video reopens from the beginning because VLC needs to release the file for the rename.
+
+Files that already start with a period are left alone. If `.filename.mp4` already exists, you'll get an error; neither file is overwritten. Duplicate playlist entries for the old name are replaced with one entry for the favorite.
+
+The period gives favorites a recognizable prefix when sorting filenames. Sort order depends on the program you're using. To undo it, remove the leading period in File Explorer while the video is closed. Saved playlists and matching subtitle filenames aren't renamed automatically.
+
 ## How it works
 
-The extension is a Lua script with a small PowerShell helper. Lua keeps track of the playing video and playlist; PowerShell handles deleting the file.
+Each menu action has a Lua script and a small PowerShell helper. Lua keeps track of the playing video and playlist; PowerShell handles deleting or renaming the file.
 
 Before stopping playback, it checks the file and makes sure VLC hasn't moved on to another video. It removes the playlist entry only after deletion succeeds. Filenames are passed as encoded data, so spaces and special characters aren't treated as commands.
 
 ## Uninstall
 
-Close VLC and open `%APPDATA%\vlc\lua\extensions` in File Explorer. Delete `vlc-deleter.lua` and the `vlc-deleter` folder. That's it.
+Close VLC and open `%APPDATA%\vlc\lua\extensions` in File Explorer. Delete `vlc-deleter.lua`, `vlc-favorite.lua`, and the `vlc-deleter` folder. That's it.
 
 ## Working on the code
 
