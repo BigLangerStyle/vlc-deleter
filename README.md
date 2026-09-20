@@ -6,6 +6,8 @@ Watching a folder full of videos and want to get rid of one? Choose **View > Del
 
 Want to keep a video instead? **View > Favorite current video** adds a period to the start of its filename: `filename.mp4` becomes `.filename.mp4`.
 
+To put one aside, choose **View > Archive current video**. It moves the video into a `.archive` folder beside it and plays the next video.
+
 ## What you'll need
 
 - Windows 10 or 11. The extension uses Windows PowerShell, which comes with Windows.
@@ -21,7 +23,7 @@ Download the project using **Code > Download ZIP** on GitHub. Extract the ZIP, o
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1
 ```
 
-Close VLC completely, then open it again. You'll find **Delete current video** and **Favorite current video** in the **View** menu.
+Close VLC completely, then open it again. You'll find **Delete current video**, **Favorite current video**, and **Archive current video** in the **View** menu.
 
 You don't need administrator rights. To update, download the latest version and run the installer again.
 
@@ -50,15 +52,23 @@ Files that already start with a period are left alone. If `.filename.mp4` alread
 
 The period gives favorites a recognizable prefix when sorting filenames. Sort order depends on the program you're using. To undo it, remove the leading period in File Explorer while the video is closed. Saved playlists and matching subtitle filenames aren't renamed automatically.
 
+### Putting a video in the archive
+
+Choose **View > Archive current video** to move `Videos\clip.mp4` into `Videos\.archive\clip.mp4`. The folder is created if needed. The video leaves your current playlist and the next one starts; archiving the only or last video stops playback.
+
+The filename stays the same, including a favorite's leading period. Subtitles stay where they are. Existing archived files are never overwritten, and videos already inside `.archive` are left alone. If the move fails, the playlist entry stays available.
+
+There's no confirmation. To restore a video, move it back with File Explorer. The folder is named `.archive`, but the period doesn't make it hidden on Windows. Saved playlists aren't rewritten.
+
 ## How it works
 
-Each menu action has a Lua script and a small PowerShell helper. Lua keeps track of the playing video and playlist; PowerShell handles deleting or renaming the file.
+Each menu action has a Lua script and a small PowerShell helper. Lua keeps track of the playing video and playlist; PowerShell handles deleting, renaming, or archiving the file.
 
 Before stopping playback, it checks the file and makes sure VLC hasn't moved on to another video. It removes the playlist entry only after deletion succeeds. Filenames are passed as encoded data, so spaces and special characters aren't treated as commands.
 
 ## Uninstall
 
-Close VLC and open `%APPDATA%\vlc\lua\extensions` in File Explorer. Delete `vlc-deleter.lua`, `vlc-favorite.lua`, and the `vlc-deleter` folder. That's it.
+Close VLC and open `%APPDATA%\vlc\lua\extensions` in File Explorer. Delete `vlc-deleter.lua`, `vlc-favorite.lua`, `vlc-archive.lua`, and the `vlc-deleter` folder. Your archived videos stay where they are.
 
 ## Working on the code
 

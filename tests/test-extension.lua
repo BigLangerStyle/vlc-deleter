@@ -37,10 +37,10 @@ local function scenario(name, options)
         if options.actualHelper then return real_popen(command, "r") end
         if helper_calls == 1 then
             assert(status == "playing", "Validation stopped playback")
-            return {read=function() return options.validationFailure and "ERROR: unsupported drive" or "VALID\r\n" end, close=function() end}
+            return {read=function() return options.already and "ALREADY\r\n" or (options.validationFailure and "ERROR: unsupported drive" or "VALID\r\n") end, close=function() end}
         end
         if options.manual then status="playing" end
-        return {read=function() return options.failure and "ERROR: locked" or "DELETED\r\n" end, close=function() end}
+        return {read=function() return options.failure and "ERROR: locked" or (test_archive and "ARCHIVED\r\n" or "DELETED\r\n") end, close=function() end}
     end
     dofile(source)
     activate()
@@ -61,8 +61,9 @@ scenario("stream", {uri="https://example.com/movie",error=true,expected=""})
 scenario("empty", {empty=true,error=true,expected=""})
 scenario("missing helper", {missing=true,error=true,expected=""})
 scenario("manual playback", {manual=true,expected="helper,stop,helper,delete:1,deactivate"})
+if test_archive then scenario("already archived", {already=true,expected="helper,deactivate"}) end
 if test_file_uri then
     scenario("actual helper", {uri=test_file_uri,actualHelper=true,expected="helper,stop,helper,delete:1,goto:2,deactivate"})
 end
 vlc, io.popen = real_vlc, real_popen
-return "PASS: " .. count .. " extension scenarios"
+return "PASS: " .. count .. (test_archive and " archive scenarios" or " delete scenarios")

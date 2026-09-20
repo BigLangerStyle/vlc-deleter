@@ -1,6 +1,7 @@
 [CmdletBinding()]
-param([string]$VlcDirectory = 'C:\Program Files\VideoLAN\VLC', [switch]$Favorite)
+param([string]$VlcDirectory = 'C:\Program Files\VideoLAN\VLC', [switch]$Favorite, [switch]$Archive)
 $ErrorActionPreference = 'Stop'
+if ($Favorite -and $Archive) { throw 'Choose one action to test at a time.' }
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -48,6 +49,9 @@ if ($Favorite) {
     $source = (Resolve-Path (Join-Path $PSScriptRoot '../src/vlc-favorite.lua')).Path.Replace('\','/')
     $test = (Join-Path $PSScriptRoot 'test-favorite.lua').Replace('\','/')
 }
+if ($Archive) {
+    $source = (Resolve-Path (Join-Path $PSScriptRoot '../src/vlc-archive.lua')).Path.Replace('\','/')
+}
 $testRoot = Join-Path $PSScriptRoot ('tmp/integration-' + [Guid]::NewGuid().ToString('N'))
 & (Join-Path $PSScriptRoot '../Install.ps1') -VlcDataDirectory $testRoot | Out-Null
 $name = 'video & %PATH% [1] ' + [char]::ConvertFromUtf32(0x1f3ac) + '.avi'
@@ -55,10 +59,15 @@ $file = Join-Path $testRoot $name
 [IO.File]::WriteAllText($file, 'Disposable extension-to-helper integration fixture')
 $uri = ([Uri]$file).AbsoluteUri
 $dataPath = $testRoot.Replace('\','/')
-Write-Output ([VlcLuaTest]::Run($VlcDirectory, "vlc={}; test_source=[[$source]]; test_data=[[$dataPath]]; test_file_uri=[[$uri]]; return dofile([[$test]])"))
+$archiveFlag = if ($Archive) { 'true' } else { 'false' }
+Write-Output ([VlcLuaTest]::Run($VlcDirectory, "vlc={}; test_archive=$archiveFlag; test_source=[[$source]]; test_data=[[$dataPath]]; test_file_uri=[[$uri]]; return dofile([[$test]])"))
 if (Test-Path -LiteralPath $file) { throw 'Integration fixture still exists under its original name.' }
 if ($Favorite) {
     $renamed = Join-Path $testRoot ('.' + $name)
     if (-not (Test-Path -LiteralPath $renamed)) { throw 'Integration fixture was not renamed.' }
     if ([IO.File]::ReadAllText($renamed) -ne 'Disposable extension-to-helper integration fixture') { throw 'Renaming changed the contents.' }
+}
+if ($Archive) {
+    $archived = Join-Path (Join-Path $testRoot '.archive') $name
+    if ([IO.File]::ReadAllText($archived) -ne 'Disposable extension-to-helper integration fixture') { throw 'Archiving changed the contents.' }
 }
